@@ -3,10 +3,12 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { name, email, message } = await req.json();
+    // 1. LEEMOS LOS NUEVOS DATOS DEL FORMULARIO
+    const { name, phone, country } = await req.json();
 
-    if (!name || !email || !message) {
-      return NextResponse.json({ error: 'Nombre, email y mensaje son requeridos.' }, { status: 400 });
+    // 2. VALIDAMOS LOS NUEVOS DATOS
+    if (!name || !phone || !country) {
+      return NextResponse.json({ error: 'Nombre, teléfono y país son requeridos.' }, { status: 400 });
     }
 
     const googleScriptUrl = process.env.GOOGLE_APPS_SCRIPT_URL;
@@ -15,6 +17,7 @@ export async function POST(req: Request) {
       throw new Error('La URL de Google Apps Script no está configurada.');
     }
 
+    // 3. ENVIAMOS LOS NUEVOS DATOS A GOOGLE SHEETS
     const response = await fetch(googleScriptUrl, {
       method: 'POST',
       headers: {
@@ -22,8 +25,8 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify({
         name,
-        email,
-        message,
+        phone,
+        country,
         date: new Date().toISOString(),
       }),
     });
@@ -34,7 +37,9 @@ export async function POST(req: Request) {
       throw new Error('No se pudo guardar el lead.');
     }
 
+    // El widget espera { status: 'success' }
     return NextResponse.json({ status: 'success' });
+
   } catch (error) {
     console.error('Error en el endpoint /api/lead:', error);
     return NextResponse.json({ error: 'Ha ocurrido un error interno.' }, { status: 500 });

@@ -16,7 +16,6 @@ const openai = new OpenAI({
 });
 
 // Umbral de confianza para la respuesta de Supabase
-// Puedes ajustar este valor (0.0 a 1.0). Más alto = más estricto.
 const SIMILARITY_THRESHOLD = 0.85;
 
 export async function POST(req: Request) {
@@ -30,7 +29,7 @@ export async function POST(req: Request) {
     // Paso 1: Generar embedding para la pregunta del usuario (server-side)
     const { pipeline } = await import('@xenova/transformers');
     const generateEmbedding = await pipeline('feature-extraction', 'Xenova/gte-small');
-    
+
     const output = await generateEmbedding(message, {
       pooling: 'mean',
       normalize: true,
@@ -44,10 +43,19 @@ export async function POST(req: Request) {
       match_count: 1, // Solo queremos la mejor coincidencia
     });
 
+    // --- BLOQUE DE LOGGING DE ERROR MEJORADO ---
     if (rpcError) {
-      console.error('Error en la llamada RPC a Supabase:', rpcError);
+      console.error('--- SUPABASE RPC ERROR DETECTADO ---'); // Marcador
+      console.error('RPC Error Completo (Objeto):', rpcError); // Muestra el objeto
+      console.error('RPC Error Completo (string):', JSON.stringify(rpcError, null, 2)); // Muestra como texto JSON
+      console.error('RPC Error Message:', rpcError.message || 'No message property'); // Propiedad específica
+      console.error('RPC Error Code:', rpcError.code || 'No code property'); // Propiedad específica
+      console.error('RPC Error Details:', rpcError.details || 'No details property'); // Propiedad específica
+      console.error('RPC Error Hint:', rpcError.hint || 'No hint property'); // Propiedad específica
+      console.error('--- FIN SUPABASE RPC ERROR ---'); // Marcador
       throw new Error('Error al buscar en la base de conocimiento.');
     }
+    // --- FIN BLOQUE DE LOGGING ---
 
     // Paso 3: Evaluar la coincidencia y decidir si usar el LLM
     if (documents && documents.length > 0 && documents[0].similarity_score > SIMILARITY_THRESHOLD) {
@@ -56,7 +64,9 @@ export async function POST(req: Request) {
     } else {
       // Paso 4: No hay coincidencia clara, escalar a OpenRouter (Gemini Flash)
       const completion = await openai.chat.completions.create({
-        model: 'google/gemini-2.0-flash-experimental',
+        // --- AQUÍ ESTÁ EL CAMBIO ---
+        model: 'google/gemini-flash-1.5',
+        // -------------------------
         messages: [
           { role: 'system', content: 'Eres un asistente servicial que responde de forma clara y concisa.' },
           { role: 'user', content: message }
@@ -67,7 +77,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ reply });
     }
   } catch (error) {
-    console.error('Error en el endpoint /api/chat:', error);
-    return NextResponse.json({ error: 'Ha ocurrido un error interno.' }, { status: 500 });
+    console.error('Error general en el endpoint /api/chat:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Ha ocurrido un error interno.';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

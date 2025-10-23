@@ -1,86 +1,34 @@
-// src/app/api/chat/route.ts
-import { createClient } from '@supabase/supabase-js';
-import OpenAI from 'openai';
-import { NextResponse } from 'next/server';
-
-// Inicialización del cliente de Supabase
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_KEY!
-);
-
-// Inicialización del cliente de OpenAI para apuntar a OpenRouter
-const openai = new OpenAI({
-  baseURL: 'https://openrouter.ai/api/v1',
-  apiKey: process.env.OPENROUTER_API_KEY!,
-});
-
-// Umbral de confianza para la respuesta de Supabase
-const SIMILARITY_THRESHOLD = 0.85;
-
-export async function POST(req: Request) {
-  try {
-    const { message } = await req.json();
-
-    if (!message || typeof message !== 'string') {
-      return NextResponse.json({ error: 'El mensaje es requerido y debe ser un texto.' }, { status: 400 });
-    }
-
-    // Paso 1: Generar embedding para la pregunta del usuario (server-side)
-    const { pipeline } = await import('@xenova/transformers');
-    const generateEmbedding = await pipeline('feature-extraction', 'Xenova/gte-small');
-
-    const output = await generateEmbedding(message, {
-      pooling: 'mean',
-      normalize: true,
-    });
-    const embedding = Array.from(output.data);
-
-    // Paso 2: Realizar la búsqueda híbrida en Supabase
-    const { data: documents, error: rpcError } = await supabase.rpc('hybrid_search_faqs', {
-      query_text: message,
-      query_embedding: embedding,
-      match_count: 1, // Solo queremos la mejor coincidencia
-    });
-
-    // --- BLOQUE DE LOGGING DE ERROR MEJORADO ---
-    if (rpcError) {
-      console.error('--- SUPABASE RPC ERROR DETECTADO ---'); // Marcador
-      // Intentamos mostrar el error de varias formas para asegurarnos de capturarlo
-      console.error('RPC Error Completo (Objeto):', rpcError); // Muestra el objeto
-      console.error('RPC Error Completo (string):', JSON.stringify(rpcError, null, 2)); // Muestra como texto JSON
-      console.error('RPC Error Message:', rpcError.message || 'No message property'); // Propiedad específica
-      console.error('RPC Error Code:', rpcError.code || 'No code property'); // Propiedad específica
-      console.error('RPC Error Details:', rpcError.details || 'No details property'); // Propiedad específica
-      console.error('RPC Error Hint:', rpcError.hint || 'No hint property'); // Propiedad específica
-      console.error('--- FIN SUPABASE RPC ERROR ---'); // Marcador
-      // Lanzamos el error que SÍ estabas viendo en los logs principales
-      throw new Error('Error al buscar en la base de conocimiento.');
-    }
-    // --- FIN BLOQUE DE LOGGING ---
-
-    // Paso 3: Evaluar la coincidencia y decidir si usar el LLM
-    if (documents && documents.length > 0 && documents[0].similarity_score > SIMILARITY_THRESHOLD) {
-      // Coincidencia encontrada con alta confianza
-      return NextResponse.json({ reply: documents[0].answer });
-    } else {
-      // Paso 4: No hay coincidencia clara, escalar a OpenRouter (Gemini Flash)
-      const completion = await openai.chat.completions.create({
-        model: 'google/gemini-2.0-flash-experimental',
-        messages: [
-          { role: 'system', content: 'Eres un asistente servicial que responde de forma clara y concisa.' },
-          { role: 'user', content: message }
-        ],
-      });
-
-      const reply = completion.choices[0]?.message?.content?.trim() ?? "Lo siento, no he podido encontrar una respuesta. Por favor, reformula tu pregunta.";
-      return NextResponse.json({ reply });
-    }
-  } catch (error) {
-    // Imprimimos el error general que ocurre en CUALQUIER punto del 'try'
-    console.error('Error general en el endpoint /api/chat:', error);
-    // Devolvemos el mensaje de error específico (si existe) o uno genérico
-    const errorMessage = error instanceof Error ? error.message : 'Ha ocurrido un error interno.';
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+{
+  "name": "tu-proyecto-chatbot",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.76.1",
+    "@xenova/transformers": "^2.17.2",
+    "next": "15.5.6",
+    "onnxruntime-web": "^1.23.0",
+    "openai": "^6.6.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "15.5.6",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  },
+  "overrides": {
+    "onnxruntime-node": "onnxruntime-web"
   }
 }

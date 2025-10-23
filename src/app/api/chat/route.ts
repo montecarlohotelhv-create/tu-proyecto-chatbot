@@ -62,10 +62,10 @@ export async function POST(req: Request) {
       // Coincidencia encontrada con alta confianza
       return NextResponse.json({ reply: documents[0].answer });
     } else {
-      // Paso 4: No hay coincidencia clara, escalar a OpenRouter (Gemini Flash)
+      // Paso 4: No hay coincidencia clara, escalar a OpenRouter (Llama 3.1 8B)
       const completion = await openai.chat.completions.create({
         // --- AQUÍ ESTÁ EL CAMBIO ---
-        model: 'google/gemini-flash-1.5',
+        model: 'meta-llama/llama-3.1-8b-instruct',
         // -------------------------
         messages: [
           { role: 'system', content: 'Eres un asistente servicial que responde de forma clara y concisa.' },

@@ -1,0 +1,167 @@
+<style>
+:root {
+    --chat-primary-color: #007bff;
+    --chat-bot-msg-bg: #f1f0f0;
+    --chat-user-msg-bg: #e9f0f7;
+}
+#lumi-chat-container { position: fixed; bottom: 20px; right: 20px; z-index: 99999; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+#lumi-chat-toggle { width: 65px; height: 65px; border-radius: 50%; background: #ffffff; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.2); transition: all 0.3s ease; border: none; outline: none; padding: 0; overflow: hidden; }
+#lumi-chat-toggle img { width: 100%; height: 100%; object-fit: cover; }
+#lumi-chat-toggle:hover { transform: scale(1.05); box-shadow: 0 6px 20px rgba(0,0,0,0.25); }
+#lumi-prompt { position: absolute; top: 50%; transform: translateY(-50%); right: 80px; background: var(--chat-primary-color); color: white; padding: 8px 15px; border-radius: 4px; font-size: 14px; white-space: nowrap; display: none; z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+#lumi-chat-window { position: fixed; bottom: 95px; right: 20px; width: 360px; min-height: 300px; max-height: 600px; height: auto !important; background: white; border-radius: 16px; box-shadow: 0 5px 25px rgba(0,0,0,0.2); display: flex; flex-direction: column; overflow: hidden; z-index: 99998; transform: scale(0); transform-origin: bottom right; transition: transform 0.3s ease-in-out; }
+#lumi-chat-container.open #lumi-chat-window { transform: scale(1); }
+#lumi-close-btn { align-self: flex-end; margin: 12px 15px 0 0; cursor: pointer; font-size: 24px; color: #666; transition: color 0.2s; position: absolute; top: 0; right: 0; z-index: 100; }
+#lumi-header-container.initial-state #lumi-close-btn:hover, #lumi-header-container.post-lead-state #lumi-close-btn:hover { color: #fff; opacity: 0.8; }
+#lumi-header-container { padding: 15px; background: #f8f9fa; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 10px; transition: background-color 0.3s ease; }
+#lumi-header-container.initial-state { background: var(--chat-primary-color); }
+#lumi-header-container.initial-state .lumi-header-text strong, #lumi-header-container.initial-state .lumi-header-text span { color: white; }
+#lumi-header-container.post-lead-state { background: var(--chat-primary-color); }
+#lumi-header-container.post-lead-state .lumi-header-text strong, #lumi-header-container.post-lead-state .lumi-header-text span { color: white; }
+#lumi-header-container.post-lead-state .lumi-header-text span { font-size: 14px; margin-top: 2px; }
+#lumi-header-container.post-lead-state .lumi-header-text span strong { font-size: 1.1em; font-weight: bold; }
+.lumi-avatar-small { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+.lumi-header-text { display: flex; flex-direction: column; line-height: 1.3; }
+#lumi-chat-messages { padding: 15px; flex-grow: 1; overflow-y: auto; min-height: 200px; max-height: 300px; }
+.lumi-message { padding: 10px 15px; margin-bottom: 10px; border-radius: 18px; max-width: 85%; word-wrap: break-word; font-size: 15px; line-height: 1.4; }
+.lumi-message-user { background-color: var(--chat-user-msg-bg); color: #000; margin-left: auto; border-bottom-right-radius: 5px; }
+.lumi-message-bot { background-color: var(--chat-bot-msg-bg); color: #000; margin-right: auto; border-bottom-left-radius: 5px; }
+#lumi-lead-form { padding: 15px; border-top: 1px solid #eee; display: block; background: #f8f9fa; }
+#lumi-status { color: #e74c3c; font-size: 13px; margin: 8px 0 5px; min-height: 18px; }
+.lumi-form-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.lumi-form-field { display: flex; flex-direction: column; margin-bottom: 10px; }
+.lumi-form-field input, .lumi-form-field select { width: 100%; padding: 10px 15px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+#lumi-terms-container { display: flex; align-items: center; gap: 8px; margin: 10px 0 15px; }
+#lumi-terms { width: 20px; height: 20px; cursor: pointer; }
+.terms-label { cursor: pointer; color: #333; font-size: 14px; flex-grow: 1; }
+.terms-link { color: var(--chat-primary-color); text-decoration: none; }
+.terms-link:hover { text-decoration: underline; }
+#lumi-validate-btn { width: 100%; padding: 12px; background: var(--chat-primary-color); color: white; border: none; border-radius: 8px; font-weight: 500; cursor: pointer; font-size: 15px; margin-top: 10px; transition: all 0.2s; }
+#lumi-validate-btn:hover { background: #0069d9; }
+#lumi-chat-input-container { display: flex; padding: 12px 15px; border-top: 1px solid #eee; background: white; }
+#lumi-chat-input { flex-grow: 1; padding: 10px 15px; border: 1px solid #ddd; border-radius: 24px; outline: none; font-size: 14px; }
+#lumi-chat-input:focus { border-color: var(--chat-primary-color); }
+#lumi-send-btn { margin-left: 8px; padding: 10px 18px; background: var(--chat-primary-color); color: white; border: none; border-radius: 24px; cursor: pointer; font-weight: 500; }
+#lumi-send-btn:hover { background: #0069d9; }
+</style>
+
+<div id="lumi-chat-container">
+    <div id="lumi-prompt">Asistencia Personalizada</div>
+    <button id="lumi-chat-toggle">
+        <img src="http://olitave.com.ar/wp-content/uploads/2025/10/robotito5avif.avif" alt="Asistente de Chat">
+    </button>
+    <div id="lumi-chat-window">
+        <div id="lumi-header-container"></div>
+        <div id="lumi-close-btn">×</div>
+        <div id="lumi-chat-messages"></div>
+        <form id="lumi-lead-form">
+            <div class="lumi-form-field"><input type="text" id="lumi-name" placeholder="Nombre completo" required></div>
+            <div class="lumi-form-row">
+                <div class="lumi-form-field" style="flex: 1;"><select id="lumi-country"><option value="AR">Argentina (+549)</option><option value="BR">Brasil (+55)</option><option value="CL">Chile (+569)</option><option value="PY">Paraguay (+5959)</option><option value="UY">Uruguay (+5989)</option><option value="OTHER">Otro país</option></select></div>
+                <div class="lumi-form-field" style="flex: 2;"><input type="tel" id="lumi-phone" placeholder="Teléfono" required></div>
+            </div>
+            <div id="lumi-terms-container"><input type="checkbox" id="lumi-terms" required><label for="lumi-terms" class="terms-label">Acepto <a href="#" class="terms-link">términos y condiciones</a></label></div>
+            <div id="lumi-status"></div>
+            <button type="button" id="lumi-validate-btn">Validar datos</button>
+        </form>
+        <div id="lumi-chat-input-container" style="display: none;">
+            <input type="text" id="lumi-chat-input" placeholder="Escribe tu mensaje...">
+            <button id="lumi-send-btn">Enviar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    const VERCEL_PROJECT_URL = 'https://tu-proyecto-chatbot.vercel.app'; // <-- ¡¡RECUERDA PONER TU URL REAL AQUÍ!!
+    const LEAD_API_ENDPOINT = `${VERCEL_PROJECT_URL}/api/lead`;
+    const CHAT_API_ENDPOINT = `${VERCEL_PROJECT_URL}/api/chat`;
+    const LOG_UNANSWERED_ENDPOINT = `${VERCEL_PROJECT_URL}/api/log-unanswered`;
+
+    const getElement = (id) => document.getElementById(id);
+    const elements = { /* ... */ };
+    elements.container = getElement('lumi-chat-container'); elements.prompt = getElement('lumi-prompt'); elements.toggleBtn = getElement('lumi-chat-toggle'); elements.chatWindow = getElement('lumi-chat-window'); elements.closeBtn = getElement('lumi-close-btn'); elements.headerContainer = getElement('lumi-header-container'); elements.messagesDiv = getElement('lumi-chat-messages'); elements.nameField = getElement('lumi-name'); elements.phoneField = getElement('lumi-phone'); elements.countrySelect = getElement('lumi-country'); elements.termsCheckbox = getElement('lumi-terms'); elements.statusDiv = getElement('lumi-status'); elements.validateBtn = getElement('lumi-validate-btn'); elements.chatInput = getElement('lumi-chat-input'); elements.sendBtn = getElement('lumi-send-btn'); elements.leadForm = getElement('lumi-lead-form'); elements.chatInputContainer = getElement('lumi-chat-input-container');
+
+    elements.leadForm.style.display = 'block'; elements.chatInputContainer.style.display = 'none';
+
+    const COUNTRY_VALIDATORS = { 'AR': { prefix: '+549', regex: /^\+549\d{10}$/, placeholder: '11 1234 5678' }, 'BR': { prefix: '+55', regex: /^\+55\d{10,11}$/, placeholder: '11 91234 5678' }, 'CL': { prefix: '+569', regex: null, placeholder: '9 1234 5678' }, 'PY': { prefix: '+5959', regex: null, placeholder: '981 123456' }, 'UY': { prefix: '+5989', regex: null, placeholder: '99 123 456' }, 'OTHER': { regex: null, placeholder: '+código número' } };
+
+    let postLeadMessageCount = 0;
+    let headerState = 'default';
+
+    function renderHeader(state, showSubtitle = true) {
+        headerState = state;
+        let headerHTML = ''; const robotImg = 'http://olitave.com.ar/wp-content/uploads/2025/10/robotito5avif.avif';
+        elements.headerContainer.classList.remove('initial-state', 'post-lead-state');
+        if (state === 'default') {
+            elements.headerContainer.classList.add('initial-state');
+            headerHTML = `<img src="${robotImg}" class="lumi-avatar-small" alt="Lumi"><div class="lumi-header-text"><strong>¡Hola! Soy Lumi</strong><span>Para empezar, ¿cómo te llamás?</span></div>`;
+        } else if (state === 'post-lead') {
+            elements.headerContainer.classList.add('post-lead-state');
+            const subtitle = showSubtitle ? `<span>Escribe <strong style="font-size: 1.1em; font-weight: bold;">"asistente"</strong> para ser contactado.</span>` : '';
+            headerHTML = `<img src="${robotImg}" class="lumi-avatar-small" alt="Lumi"><div class="lumi-header-text"><strong>Lumi</strong>${subtitle}</div>`;
+        }
+        elements.headerContainer.innerHTML = headerHTML;
+    }
+
+    function addMessage(text, sender = 'bot') {
+        const msgDiv = document.createElement('div'); msgDiv.className = `lumi-message lumi-message-${sender}`;
+        msgDiv.innerHTML = `<span>${text.replace(/\n/g, '<br>')}</span>`; elements.messagesDiv.appendChild(msgDiv);
+        elements.messagesDiv.scrollTop = elements.messagesDiv.scrollHeight;
+        if (headerState === 'post-lead') { postLeadMessageCount++; if (postLeadMessageCount >= 3) { renderHeader('post-lead', true); } }
+    }
+
+    function updatePlaceholder() { const countryCode = elements.countrySelect.value; const validator = COUNTRY_VALIDATORS[countryCode] || COUNTRY_VALIDATORS['OTHER']; elements.phoneField.placeholder = validator.placeholder; elements.statusDiv.textContent = ''; }
+    updatePlaceholder();
+
+    elements.toggleBtn.addEventListener('mouseenter', () => elements.prompt.style.display = 'block');
+    elements.toggleBtn.addEventListener('mouseleave', () => elements.prompt.style.display = 'none');
+
+    elements.toggleBtn.addEventListener('click', () => {
+        const containerIsOpen = elements.container.classList.toggle('open');
+        if (containerIsOpen) { postLeadMessageCount = 0; elements.messagesDiv.innerHTML = ''; renderHeader('default'); updatePlaceholder(); elements.leadForm.style.display = 'block'; elements.chatInputContainer.style.display = 'none'; elements.nameField.value = ''; elements.phoneField.value = ''; elements.termsCheckbox.checked = false; }
+    });
+
+    elements.closeBtn.addEventListener('click', () => { elements.container.classList.remove('open'); });
+    elements.countrySelect.addEventListener('change', updatePlaceholder);
+
+    elements.validateBtn.addEventListener('click', () => { const nombre = elements.nameField.value.trim(); if (nombre.length < 3) { elements.statusDiv.textContent = '...'; elements.nameField.focus(); return; } const countryCode = elements.countrySelect.value || 'AR'; const validator = COUNTRY_VALIDATORS[countryCode] || COUNTRY_VALIDATORS['OTHER']; let telefono = elements.phoneField.value.replace(/[\s-()]/g, ''); if (validator.prefix && !telefono.startsWith('+')) { telefono = `${validator.prefix}${telefono}`; } if ((countryCode === 'AR' || countryCode === 'BR') && validator.regex) { if (!validator.regex.test(telefono)) { elements.statusDiv.textContent = `...`; elements.phoneField.focus(); return; } } else if (!/^(\+\d{7,15})$/.test(telefono)) { elements.statusDiv.textContent = `...`; elements.phoneField.focus(); return; } if (!elements.termsCheckbox.checked) { elements.statusDiv.textContent = '...'; elements.termsCheckbox.focus(); return; }
+        elements.statusDiv.textContent = 'Enviando...'; elements.validateBtn.disabled = true;
+        fetch(LEAD_API_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: nombre, phone: telefono, country: countryCode }) })
+        .then(res => res.json()).then(data => { if (data.status === 'success') { postLeadMessageCount = 0; renderHeader('post-lead', false); elements.leadForm.style.display = 'none'; elements.chatInputContainer.style.display = 'flex'; elements.chatInput.focus(); addMessage(`¡Gracias, ${nombre}! Tus datos fueron recibidos.`, 'bot'); } else { elements.statusDiv.textContent = `⚠️ ${data.error || 'Error desconocido'}`; } })
+        .catch(error => { console.error('Error al enviar lead:', error); elements.statusDiv.textContent = '⚠️ Error de conexión. Inténtalo de nuevo.'; }).finally(() => { elements.validateBtn.disabled = false; });
+    });
+
+    async function handleSendMessageInternal() {
+        const text = elements.chatInput.value.trim(); if (!text) return; const lowerText = text.toLowerCase(); addMessage(text, 'user'); const originalQuestion = text;
+        elements.chatInput.value = ''; elements.chatInput.disabled = true;
+        if (lowerText === 'asistente') { addMessage('¡Gracias por comunicarte! Un asesor te llamará a la brevedad. Si prefieres un rango horario específico, por favor déjalo en el chat.', 'bot'); elements.chatInput.disabled = false; elements.chatInput.focus(); return; }
+        addMessage('🤔...', 'bot');
+        try {
+            const response = await fetch(CHAT_API_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text }) });
+            if (!response.ok) { throw new Error('Respuesta de red no fue OK'); }
+            const data = await response.json();
+            const thinkingMsg = elements.messagesDiv.querySelector('.lumi-message:last-child'); if (thinkingMsg && thinkingMsg.textContent.includes('🤔...')) { thinkingMsg.remove(); }
+            const reply = data.reply || 'Lo siento, no pude procesar tu solicitud.';
+            addMessage(reply, 'bot');
+            if (reply.includes("Lo siento, no he podido") || reply.includes("no pude procesar") || reply === "Lo siento, no he podido encontrar una respuesta específica sobre eso en mi base de conocimientos del hotel. ¿Podrías reformular tu pregunta o escribir 'asistente' si necesitas ayuda personalizada?") {
+                logUnansweredQuestion(originalQuestion);
+            }
+        } catch (error) {
+            console.error('Error en chat:', error); const thinkingMsg = elements.messagesDiv.querySelector('.lumi-message:last-child'); if (thinkingMsg && thinkingMsg.textContent.includes('🤔...')) { thinkingMsg.remove(); } addMessage('Hubo un problema de conexión. Por favor, intenta de nuevo.', 'bot');
+            logUnansweredQuestion(originalQuestion);
+        } finally { elements.chatInput.disabled = false; elements.chatInput.focus(); }
+    }
+    elements.sendBtn.addEventListener('click', handleSendMessageInternal);
+
+    async function logUnansweredQuestion(question) {
+        console.log("Intentando loguear pregunta sin respuesta:", question);
+        try { await fetch(LOG_UNANSWERED_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: question }) }); } catch (logError) { console.error('Error al intentar loguear pregunta sin respuesta:', logError); }
+    }
+
+    const handleEnter = (e) => { if (e.key === 'Enter') { e.preventDefault(); if (elements.leadForm.style.display !== 'none') { elements.validateBtn.click(); } else { elements.sendBtn.click(); } } };
+    elements.nameField.addEventListener('keypress', handleEnter); elements.phoneField.addEventListener('keypress', handleEnter); elements.chatInput.addEventListener('keypress', handleEnter);
+
+});
+</script>

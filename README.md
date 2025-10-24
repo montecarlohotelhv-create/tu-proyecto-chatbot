@@ -220,4 +220,105 @@ Los scripts SQL utilizados para configurar la base de datos se encuentran respal
 * `supabase_setup/01_setup_extensions_and_table.sql`: Crea las extensiones, la tabla `faqs` y los índices.
 * `supabase_setup/02_create_hybrid_search_function.sql`: Crea o reemplaza la función `hybrid_search_faqs`.
 
-*(Aquí añadiremos más secciones después: Google Scripts, Despliegue, etc.)*
+## Captura de Leads y Logs (Google Sheets / Apps Script)
+
+Se utilizan dos Hojas de Cálculo de Google separadas, cada una controlada por un [Google Apps Script](https://developers.google.com/apps-script) independiente, para almacenar los datos enviados desde el backend de Vercel. Cada script se despliega como una **Aplicación Web** que actúa como un webhook.
+
+### 1. Script para Leads (`leads_script`)
+
+* **Hoja de Cálculo Asociada:** `Leads` (o la hoja que hayas configurado). Se esperan las columnas: `Nombre`, `Telefono`, `Pais`, `Fecha`.
+* **Propósito:** Recibir los datos de contacto enviados por un usuario a través del formulario del widget.
+* **Archivo de Código:** El código fuente se gestiona vía `clasp` y se encuentra en `google_apps_scripts/leads_script/Code.js` (o `.gs`).
+* **Funcionamiento:**
+    1.  Implementa la función `doPost(e)` que se activa al recibir una petición `POST` desde el endpoint `/api/lead` de Vercel.
+    2.  Obtiene los datos (`name`, `phone`, `country`, `date`) del cuerpo JSON de la petición (`e.postData.contents`).
+    3.  Abre la hoja de cálculo asociada (buscando la pestaña llamada `Leads` o usando la primera disponible).
+    4.  Añade una nueva fila (`appendRow`) con los datos recibidos.
+    5.  Utiliza `LockService` para prevenir escrituras simultáneas que podrían corromper la hoja.
+    6.  Devuelve una respuesta JSON `{ "status": "success" }` si todo funcionó, o `{ "status": "error", "message": "..." }` si hubo un problema.
+* **Despliegue:**
+    * Debe desplegarse como **Aplicación Web**.
+    * Configuración de Acceso:
+        * **Ejecutar como:** `Me (tu email)`
+        * **Quién tiene acceso:** `Anyone`
+    * La **URL de la Aplicación Web** resultante es el valor que se guarda en la variable de entorno `GOOGLE_APPS_SCRIPT_URL` en Vercel.
+    * **Importante:** Cada vez que se modifica el código del script, se debe crear una **nueva versión** del despliegue (`Deploy > Manage deployments > Edit (lápiz) > New version > Deploy`) para que los cambios se apliquen.
+
+### 2. Script para Logs de Preguntas (`logs_script`)
+
+* **Hoja de Cálculo Asociada:** `Chatbot Logs Preguntas` (o la hoja que hayas configurado). Se esperan las columnas: `Timestamp`, `Question`.
+* **Propósito:** Recibir y almacenar las preguntas que el chatbot no pudo responder satisfactoriamente (ya sea por fallo de Supabase, porque la IA usó el fallback, o por un error general).
+* **Archivo de Código:** El código fuente se gestiona vía `clasp` y se encuentra en `google_apps_scripts/logs_script/Code.js` (o `.gs`).
+* **Funcionamiento:**
+    1.  Implementa la función `doPost(e)` que se activa al recibir una petición `POST` desde el endpoint `/api/log-unanswered` de Vercel.
+    2.  Obtiene la pregunta (`question`) del cuerpo JSON de la petición.
+    3.  Obtiene la hora actual (`timestamp`).
+    4.  Abre la hoja de cálculo asociada (usando la primera pestaña disponible).
+    5.  Añade una nueva fila con la hora y la pregunta.
+    6.  Utiliza `LockService`.
+    7.  Devuelve `{ "status": "success" }` o un error JSON.
+* **Despliegue:**
+    * Mismo proceso que el script de Leads (Aplicación Web, Ejecutar como `Me`, Acceso `Anyone`).
+    * La **URL de la Aplicación Web** resultante es el valor que se guarda en la variable de entorno `LOGGING_GOOGLE_APPS_SCRIPT_URL` en Vercel.
+    * También requiere crear una **nueva versión** del despliegue tras cada cambio en el código.
+
+### Gestión del Código con `clasp`
+
+La herramienta `clasp` permite sincronizar el código de los Apps Scripts entre el editor web de Google y tu repositorio local (y por ende, GitHub).
+
+* **Descargar cambios del editor web al local:** `clasp pull` (dentro de la carpeta del script correspondiente, ej. `google_apps_scripts/leads_script`).
+* **Subir cambios del local al editor web:** `clasp push` (y luego redesplegar desde el editor web).
+
+## Despliegue y Mantenimiento
+
+Esta sección cubre cómo se actualiza el sistema y qué tareas de mantenimiento son recomendables.
+
+### Proceso de Despliegue (Actualizaciones)
+
+El sistema se beneficia de la integración continua y despliegue continuo (CI/CD) gracias a la conexión entre GitHub y Vercel.
+
+1.  **Cambios en el Backend (Código Next.js):**
+    * Realiza los cambios necesarios en los archivos `.ts` dentro de la carpeta `src/app/api/` (o en `package.json`, `next.config.ts`, etc.) en tu copia local del proyecto (VS Code).
+    * Guarda los archivos.
+    * Abre la terminal (PowerShell) en la carpeta del proyecto (`C:\Users\hvezz\tu-proyecto-chatbot`).
+    * Ejecuta los siguientes comandos Git:
+        ```bash
+        git add .
+        git commit -m "Describe brevemente tu cambio aquí"
+        git push
+        ```
+    * **Vercel detectará automáticamente** el `git push` a la rama `main`.
+    * Vercel iniciará un **nuevo despliegue de producción**. Puedes monitorear su progreso en el panel de Vercel.
+    * Una vez que el despliegue esté "Ready" (Listo), los cambios estarán activos en `https://tu-proyecto-chatbot.vercel.app`.
+
+2.  **Cambios en el Widget (Elementor):**
+    * Edita la página de WordPress con Elementor.
+    * Modifica el código dentro del widget HTML.
+    * **Guarda** la página en Elementor. Los cambios son efectivos inmediatamente.
+    * **Recomendación:** Después de guardar en Elementor, copia el código completo del widget y pégalo en el archivo `widget/elementor_widget_code.html` de tu repositorio local. Luego, sube ese cambio a GitHub (`git add .`, `git commit`, `git push`) para mantener el backup actualizado.
+
+3.  **Cambios en los Google Apps Scripts:**
+    * **Opción A (Recomendada - Usando `clasp` localmente):**
+        * Edita los archivos `.js` dentro de `google_apps_scripts/leads_script` o `google_apps_scripts/logs_script` en VS Code.
+        * Guarda los cambios.
+        * Abre la terminal, navega a la carpeta raíz del proyecto.
+        * Ejecuta `clasp push --rootDir ./google_apps_scripts/leads_script` (o `logs_script`).
+        * Ve al editor web del Apps Script correspondiente. Verás los cambios reflejados.
+        * **Importante:** Desde el editor web, ve a `Deploy > Manage deployments > Edit (lápiz) > New version > Deploy` para publicar la nueva versión.
+        * Sube los cambios del código a GitHub (`git add .`, `git commit`, `git push`).
+    * **Opción B (Directamente en el Editor Web):**
+        * Abre el Apps Script desde la Hoja de Cálculo (Extensiones > Apps Script).
+        * Realiza los cambios en el editor web.
+        * Guarda los cambios (💾).
+        * **Importante:** Ve a `Deploy > Manage deployments > Edit (lápiz) > New version > Deploy`.
+        * **Recomendación:** Después de desplegar, abre la terminal en tu PC, navega a la carpeta raíz del proyecto y ejecuta `clasp pull --rootDir ./google_apps_scripts/leads_script` (o `logs_script`) para actualizar tu copia local y luego sube esos cambios a GitHub.
+
+### Tareas de Mantenimiento Recomendadas
+
+* **Revisar Logs de Preguntas No Respondidas (Semanal/Mensual):** Abre la Google Sheet `Chatbot Logs Preguntas`. Revisa las preguntas que el bot no pudo contestar. Considera añadir las más frecuentes o importantes a la tabla `faqs` en Supabase para mejorar las respuestas.
+* **Backup Manual de Datos de Supabase (Mensual/Trimestral):** Ejecuta el comando `pg_dump` (ver sección de Backup) para tener una copia de seguridad reciente de tus FAQs, especialmente si has añadido muchas nuevas. Guarda el archivo `.sql` resultante en un lugar seguro.
+* **Revisar Hoja de Leads (Periódicamente):** Asegúrate de que los datos se estén guardando correctamente en la Google Sheet `Leads`.
+* **Actualizar Dependencias (Ocasionalmente):** De vez en cuando (ej. cada 6 meses), puedes actualizar las librerías del backend para mantener la seguridad y el rendimiento. Esto se hace ejecutando `npm update` en la terminal local, probando que todo siga funcionando, y luego subiendo los cambios (`package.json`, `package-lock.json`) a GitHub. *Haz esto con precaución, a veces las actualizaciones pueden romper cosas.*
+* **Verificar Claves/URLs (Si algo falla):** Si el bot deja de funcionar (errores de conexión, etc.), lo primero es verificar que las Variables de Entorno en Vercel sigan siendo correctas y que las URLs de despliegue de los Apps Scripts no hayan cambiado.
+
+
